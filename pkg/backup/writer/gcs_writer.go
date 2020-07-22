@@ -49,10 +49,10 @@ func (gcsw *gcsWriter) Write(ctx context.Context, path string, r io.Reader) (int
 	n, copyErr := io.Copy(w, r)
 	closeErr := w.Close()
 	if copyErr != nil {
-		return n, fmt.Errorf("copy to gcs: %v", err)
+		return n, fmt.Errorf("copy to gcs: %v", copyErr)
 	}
 	if closeErr != nil {
-		return n, fmt.Errorf("close gcs writer: %v", err)
+		return n, fmt.Errorf("close gcs writer: %v", closeErr)
 	}
 	return n, nil
 }
