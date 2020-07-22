@@ -79,6 +79,7 @@ func (b *Backup) processItem(key string) error {
 		return b.removeFinalizerOfPeriodicBackup(eb)
 	}
 	isPeriodic := isPeriodicBackup(&eb.Spec)
+	b.logger.Debugf("processItem: %#v; isPeriodic: %v", eb, isPeriodic)
 
 	// don't process the CR if it has a status since
 	// having a status means that the backup is either made or failed.
@@ -212,11 +213,11 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 
 func (b *Backup) reportBackupStatus(bs *api.BackupStatus, berr error, eb *api.EtcdBackup) {
 	if berr != nil {
-		b.logger.Errorf("backup %s failed: %v", eb.GetName(), berr)
+		b.logger.Errorf("backup %s failed: %v (status %#v)", eb.GetName(), berr, bs)
 		eb.Status.Succeeded = false
 		eb.Status.Reason = berr.Error()
 	} else {
-		b.logger.Infof("backup %s succeeded", eb.GetName())
+		b.logger.Infof("backup %s succeeded (status %#v)", eb.GetName(), bs)
 		eb.Status.Reason = ""
 		eb.Status.Succeeded = true
 		eb.Status.EtcdRevision = bs.EtcdRevision

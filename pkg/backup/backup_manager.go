@@ -137,8 +137,6 @@ func getClientWithMaxRev(ctx context.Context, endpoints []string, tc *tls.Config
 			errors = append(errors, fmt.Sprintf("failed to get revision from endpoint (%s): %v", endpoint, err))
 			continue
 		}
-
-		logrus.Infof("getMaxRev: endpoint %s revision (%d)", endpoint, resp.Header.Revision)
 		if resp.Header.Revision > maxRev {
 			maxRev = resp.Header.Revision
 			maxClient = etcdcli
