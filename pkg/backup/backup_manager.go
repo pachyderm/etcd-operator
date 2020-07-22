@@ -133,7 +133,7 @@ func getClientWithMaxRev(ctx context.Context, endpoints []string, tc *tls.Config
 
 		resp, err := etcdcli.Get(ctx, "/", clientv3.WithSerializable())
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to get revision from endpoint (%s)", endpoint))
+			errors = append(errors, fmt.Sprintf("failed to get revision from endpoint (%s): %v", endpoint, err))
 			continue
 		}
 
