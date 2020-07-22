@@ -47,8 +47,10 @@ func (b *Backup) runWorker() {
 
 func (b *Backup) processNextItem() bool {
 	// Wait until there is a new item in the working queue
+	b.logger.Debug("waiting for work")
 	key, quit := b.queue.Get()
 	if quit {
+		b.logger.Info("bailing out of backup loop")
 		return false
 	}
 	// Tell the queue that we are done with processing this key. This unblocks the key for other workers
@@ -73,6 +75,7 @@ func (b *Backup) processItem(key string) error {
 	eb := obj.(*api.EtcdBackup)
 
 	if eb.DeletionTimestamp != nil {
+		b.logger.Infof("EtcdBackup %q deleted", eb.GetName())
 		b.deletePeriodicBackupRunner(eb.ObjectMeta.UID)
 		return b.removeFinalizerOfPeriodicBackup(eb)
 	}
@@ -96,10 +99,12 @@ func (b *Backup) processItem(key string) error {
 		}
 
 		// Run new backup runner
-		ticker := time.NewTicker(
-			time.Duration(eb.Spec.BackupPolicy.BackupIntervalInSecond) * time.Second)
+		interval := time.Duration(eb.Spec.BackupPolicy.BackupIntervalInSecond) * time.Second
+		ticker := time.NewTicker(interval)
+
 		ctx := context.Background()
 		ctx, cancel := context.WithCancel(ctx)
+		b.logger.Debugf("starting periodic backup runner for backup %q; interval %s", eb.GetName(), interval.String())
 		go b.periodicRunnerFunc(ctx, ticker, eb)
 
 		// Store cancel function for periodic
@@ -107,6 +112,7 @@ func (b *Backup) processItem(key string) error {
 
 	} else if !isPeriodic {
 		// Perform backup
+		b.logger.Infof("starting backup %q", eb.GetName())
 		bs, err := b.handleBackup(nil, &eb.Spec, false)
 		// Report backup status
 		b.reportBackupStatus(bs, err, eb)
@@ -174,6 +180,7 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 		case <-ctx.Done():
 			break
 		case <-t.C:
+			b.logger.Infof("starting periodic backup %q", eb.GetName())
 			var latestEb *api.EtcdBackup
 			var bs *api.BackupStatus
 			var err error
@@ -205,9 +212,11 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 
 func (b *Backup) reportBackupStatus(bs *api.BackupStatus, berr error, eb *api.EtcdBackup) {
 	if berr != nil {
+		b.logger.Infof("backup %q succeeded", eb.GetName())
 		eb.Status.Succeeded = false
 		eb.Status.Reason = berr.Error()
 	} else {
+		b.logger.Errorf("backup %q failed: %v", eb.GetName(), berr)
 		eb.Status.Reason = ""
 		eb.Status.Succeeded = true
 		eb.Status.EtcdRevision = bs.EtcdRevision
