@@ -16,6 +16,7 @@ package upgradetest
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
@@ -27,6 +28,11 @@ import (
 var testF *framework.Framework
 
 func TestMain(m *testing.M) {
+	if os.Getenv("IGNORE_ETCD_E2E_TESTS") == "1" {
+		fmt.Println("skipping e2e tests because IGNORE_ETCD_E2E_TESTS=1")
+		os.Exit(0)
+	}
+
 	kubeconfig := flag.String("kubeconfig", "", "kube config path, e.g. $HOME/.kube/config")
 	kubeNS := flag.String("kube-ns", "default", "upgrade test namespace")
 	oldImage := flag.String("old-image", "", "")
@@ -42,7 +48,7 @@ func TestMain(m *testing.M) {
 	var err error
 	testF, err = framework.New(cfg)
 	if err != nil {
-		logrus.Fatalf("failed to create test framework: %v", err)
+		logrus.Fatalf("failed to create test framework: %v (IGNORE_ETCD_E2E_TESTS=1 to skip)", err)
 	}
 
 	code := m.Run()
