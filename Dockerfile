@@ -14,6 +14,6 @@ RUN CGO_ENABLED=0 go install -ldflags "-X github.com/coreos/etcd-operator/versio
 FROM gcr.io/distroless/static-debian10
 ENV PATH="/usr/local/bin"
 WORKDIR /
-COPY --from=build /go/bin/backup-operator /usr/local/bin/backup-operator
-COPY --from=build /go/bin/restore-operator /usr/local/bin/restore-operator
-COPY --from=build /go/bin/operator /usr/local/bin/operator
+COPY --from=build /go/bin/backup-operator /usr/local/bin/etcd-backup-operator
+COPY --from=build /go/bin/restore-operator /usr/local/bin/etcd-restore-operator
+COPY --from=build /go/bin/operator /usr/local/bin/etcd-operator
