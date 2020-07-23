@@ -1,0 +1,15 @@
+steps:
+    - name: "gcr.io/cloud-builders/docker"
+      args:
+          [
+              "build",
+              "--build-arg",
+              "version=$PROJECT_ID",
+              "--build-arg",
+              "git_sha=$COMMIT_SHA",
+              "-t",
+              "gcr.io/$PROJECT_ID/etcd-operator:$COMMIT_SHA",
+              ".",
+          ]
+images: ["gcr.io/$PROJECT_ID/etcd-operator:$COMMIT_SHA"]
+timeout: 1200s
