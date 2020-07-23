@@ -79,7 +79,6 @@ func (b *Backup) processItem(key string) error {
 		return b.removeFinalizerOfPeriodicBackup(eb)
 	}
 	isPeriodic := isPeriodicBackup(&eb.Spec)
-	b.logger.Debugf("processItem: %#v; isPeriodic: %v", eb, isPeriodic)
 
 	// don't process the CR if it has a status since
 	// having a status means that the backup is either made or failed.
@@ -114,7 +113,7 @@ func (b *Backup) processItem(key string) error {
 	} else if !isPeriodic {
 		// Perform backup
 		b.logger.Infof("starting backup %s", eb.GetName())
-		bs, err := b.handleBackup(nil, &eb.Spec, false)
+		bs, err := b.handleBackup(context.Background(), &eb.Spec, false)
 		// Report backup status
 		b.reportBackupStatus(bs, err, eb)
 	}
@@ -203,7 +202,7 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 			}
 			if err == nil {
 				// Perform backup
-				bs, err = b.handleBackup(&ctx, &latestEb.Spec, true)
+				bs, err = b.handleBackup(ctx, &latestEb.Spec, true)
 			}
 			// Report backup status
 			b.reportBackupStatus(bs, err, latestEb)
@@ -254,7 +253,7 @@ func (b *Backup) handleErr(err error, key interface{}) {
 	b.logger.Infof("Dropping etcd backup (%v) out of the queue: %v", key, err)
 }
 
-func (b *Backup) handleBackup(parentContext *context.Context, spec *api.BackupSpec, isPeriodic bool) (*api.BackupStatus, error) {
+func (b *Backup) handleBackup(parentContext context.Context, spec *api.BackupSpec, isPeriodic bool) (*api.BackupStatus, error) {
 	err := validate(spec)
 	if err != nil {
 		return nil, err
@@ -270,11 +269,7 @@ func (b *Backup) handleBackup(parentContext *context.Context, spec *api.BackupSp
 		backupMaxCount = spec.BackupPolicy.MaxBackups
 	}
 
-	if parentContext == nil {
-		tmpParent := context.Background()
-		parentContext = &tmpParent
-	}
-	ctx, cancel := context.WithTimeout(*parentContext, backupTimeout)
+	ctx, cancel := context.WithTimeout(parentContext, backupTimeout)
 	defer cancel()
 	switch spec.StorageType {
 	case api.BackupStorageTypeS3:
