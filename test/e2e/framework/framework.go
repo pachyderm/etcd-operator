@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -30,7 +31,7 @@ import (
 	"github.com/coreos/etcd-operator/test/e2e/e2eutil"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -56,6 +57,11 @@ type Framework struct {
 
 // Setup setups a test framework and points "Global" to it.
 func setup() error {
+	if os.Getenv("IGNORE_ETCD_E2E_TESTS") == "1" {
+		fmt.Println("skipping e2e tests because IGNORE_ETCD_E2E_TESTS=1")
+		os.Exit(0)
+	}
+
 	kubeconfig := flag.String("kubeconfig", "", "kube config path, e.g. $HOME/.kube/config")
 	opImage := flag.String("operator-image", "", "operator image, e.g. gcr.io/coreos-k8s-scale-testing/etcd-operator")
 	ns := flag.String("namespace", "default", "e2e test namespace")
@@ -107,7 +113,7 @@ func teardown() error {
 func (f *Framework) setup() error {
 	err := f.SetupEtcdOperator()
 	if err != nil {
-		return fmt.Errorf("failed to setup etcd operator: %v", err)
+		return fmt.Errorf("failed to setup etcd operator: %v (IGNORE_ETCD_E2E_TESTS=1 to skip)", err)
 	}
 	logrus.Info("etcd operator created successfully")
 

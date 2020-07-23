@@ -94,6 +94,7 @@ func (bm *BackupManager) EnsureMaxBackup(ctx context.Context, basePath string, m
 		if i < maxCount {
 			continue
 		}
+		logrus.Debugf("deleting stale backup %q", snapshotPath)
 		err := bm.bw.Delete(ctx, snapshotPath)
 		if err != nil {
 			return fmt.Errorf("failed to delete snapshot: %v", err)
@@ -133,11 +134,9 @@ func getClientWithMaxRev(ctx context.Context, endpoints []string, tc *tls.Config
 
 		resp, err := etcdcli.Get(ctx, "/", clientv3.WithSerializable())
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to get revision from endpoint (%s)", endpoint))
+			errors = append(errors, fmt.Sprintf("failed to get revision from endpoint (%s): %v", endpoint, err))
 			continue
 		}
-
-		logrus.Infof("getMaxRev: endpoint %s revision (%d)", endpoint, resp.Header.Revision)
 		if resp.Header.Revision > maxRev {
 			maxRev = resp.Header.Revision
 			maxClient = etcdcli
@@ -153,7 +152,7 @@ func getClientWithMaxRev(ctx context.Context, endpoints []string, tc *tls.Config
 	}
 
 	if maxClient == nil {
-		return nil, 0, fmt.Errorf("could not create an etcd client for the max revision purpose from given endpoints (%v)", endpoints)
+		return nil, 0, fmt.Errorf("could not create an etcd client for the max revision purpose from given endpoints %v: (caused by: %v)", endpoints, errors)
 	}
 
 	var err error

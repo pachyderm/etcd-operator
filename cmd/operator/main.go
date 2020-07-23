@@ -73,6 +73,12 @@ func init() {
 }
 
 func main() {
+	if l, err := logrus.ParseLevel(os.Getenv(constants.EnvOperatorLogLevel)); err == nil {
+		logrus.Infof("log level %s", l)
+		logrus.SetLevel(l)
+	} else {
+		logrus.Errorf("cannot set log level: %v", err)
+	}
 	namespace = os.Getenv(constants.EnvOperatorPodNamespace)
 	if len(namespace) == 0 {
 		logrus.Fatalf("must set env (%s)", constants.EnvOperatorPodNamespace)

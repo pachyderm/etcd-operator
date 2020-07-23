@@ -30,4 +30,5 @@ const (
 
 	EnvOperatorPodName      = "MY_POD_NAME"
 	EnvOperatorPodNamespace = "MY_POD_NAMESPACE"
+	EnvOperatorLogLevel     = "LOG_LEVEL"
 )

@@ -22,7 +22,6 @@ import (
 	"github.com/coreos/etcd-operator/pkg/backup/util"
 
 	"cloud.google.com/go/storage"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 )
 
@@ -46,18 +45,16 @@ func (gcsw *gcsWriter) Write(ctx context.Context, path string, r io.Reader) (int
 	}
 
 	w := gcsw.gcs.Bucket(bucket).Object(key).NewWriter(ctx)
-	defer func() {
-		err := w.Close()
-		if err != nil {
-			logrus.Errorf("failed to close GCS object writer: %v", err)
-		}
-	}()
 
-	n, err := io.Copy(w, r)
-	if err != nil {
-		err = fmt.Errorf("failed to write GCS object: %v", err)
+	n, copyErr := io.Copy(w, r)
+	closeErr := w.Close()
+	if copyErr != nil {
+		return n, fmt.Errorf("copy to gcs: %v", copyErr)
 	}
-	return n, err
+	if closeErr != nil {
+		return n, fmt.Errorf("close gcs writer: %v", closeErr)
+	}
+	return n, nil
 }
 
 func (gcsw *gcsWriter) List(ctx context.Context, basePath string) ([]string, error) {

@@ -49,6 +49,7 @@ func (b *Backup) processNextItem() bool {
 	// Wait until there is a new item in the working queue
 	key, quit := b.queue.Get()
 	if quit {
+		b.logger.Info("bailing out of backup loop")
 		return false
 	}
 	// Tell the queue that we are done with processing this key. This unblocks the key for other workers
@@ -73,6 +74,7 @@ func (b *Backup) processItem(key string) error {
 	eb := obj.(*api.EtcdBackup)
 
 	if eb.DeletionTimestamp != nil {
+		b.logger.Infof("EtcdBackup %s deleted", eb.GetName())
 		b.deletePeriodicBackupRunner(eb.ObjectMeta.UID)
 		return b.removeFinalizerOfPeriodicBackup(eb)
 	}
@@ -86,6 +88,7 @@ func (b *Backup) processItem(key string) error {
 	}
 
 	if isPeriodic && b.isChanged(eb) {
+		b.logger.Debugf("backup %s changed; updating configuration", eb.GetName())
 		// Stop previous backup runner if it exists
 		b.deletePeriodicBackupRunner(eb.ObjectMeta.UID)
 
@@ -96,10 +99,12 @@ func (b *Backup) processItem(key string) error {
 		}
 
 		// Run new backup runner
-		ticker := time.NewTicker(
-			time.Duration(eb.Spec.BackupPolicy.BackupIntervalInSecond) * time.Second)
+		interval := time.Duration(eb.Spec.BackupPolicy.BackupIntervalInSecond) * time.Second
+		ticker := time.NewTicker(interval)
+
 		ctx := context.Background()
 		ctx, cancel := context.WithCancel(ctx)
+		b.logger.Debugf("starting periodic backup runner for backup %s; interval %s", eb.GetName(), interval.String())
 		go b.periodicRunnerFunc(ctx, ticker, eb)
 
 		// Store cancel function for periodic
@@ -107,7 +112,8 @@ func (b *Backup) processItem(key string) error {
 
 	} else if !isPeriodic {
 		// Perform backup
-		bs, err := b.handleBackup(nil, &eb.Spec, false)
+		b.logger.Infof("starting backup %s", eb.GetName())
+		bs, err := b.handleBackup(context.Background(), &eb.Spec, false)
 		// Report backup status
 		b.reportBackupStatus(bs, err, eb)
 	}
@@ -172,8 +178,9 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 	for {
 		select {
 		case <-ctx.Done():
-			break
+			return
 		case <-t.C:
+			b.logger.Infof("starting periodic backup %s", eb.GetName())
 			var latestEb *api.EtcdBackup
 			var bs *api.BackupStatus
 			var err error
@@ -195,7 +202,7 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 			}
 			if err == nil {
 				// Perform backup
-				bs, err = b.handleBackup(&ctx, &latestEb.Spec, true)
+				bs, err = b.handleBackup(ctx, &latestEb.Spec, true)
 			}
 			// Report backup status
 			b.reportBackupStatus(bs, err, latestEb)
@@ -205,9 +212,11 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 
 func (b *Backup) reportBackupStatus(bs *api.BackupStatus, berr error, eb *api.EtcdBackup) {
 	if berr != nil {
+		b.logger.Errorf("backup %s failed: %v (status %#v)", eb.GetName(), berr, bs)
 		eb.Status.Succeeded = false
 		eb.Status.Reason = berr.Error()
 	} else {
+		b.logger.Infof("backup %s succeeded (status %#v)", eb.GetName(), bs)
 		eb.Status.Reason = ""
 		eb.Status.Succeeded = true
 		eb.Status.EtcdRevision = bs.EtcdRevision
@@ -216,7 +225,7 @@ func (b *Backup) reportBackupStatus(bs *api.BackupStatus, berr error, eb *api.Et
 	}
 	_, err := b.backupCRCli.EtcdV1beta2().EtcdBackups(b.namespace).Update(eb)
 	if err != nil {
-		b.logger.Warningf("failed to update status of backup CR %v : (%v)", eb.Name, err)
+		b.logger.Warningf("failed to update status of backup CR %s: %v", eb.Name, err)
 	}
 }
 
@@ -244,7 +253,7 @@ func (b *Backup) handleErr(err error, key interface{}) {
 	b.logger.Infof("Dropping etcd backup (%v) out of the queue: %v", key, err)
 }
 
-func (b *Backup) handleBackup(parentContext *context.Context, spec *api.BackupSpec, isPeriodic bool) (*api.BackupStatus, error) {
+func (b *Backup) handleBackup(parentContext context.Context, spec *api.BackupSpec, isPeriodic bool) (*api.BackupStatus, error) {
 	err := validate(spec)
 	if err != nil {
 		return nil, err
@@ -260,11 +269,7 @@ func (b *Backup) handleBackup(parentContext *context.Context, spec *api.BackupSp
 		backupMaxCount = spec.BackupPolicy.MaxBackups
 	}
 
-	if parentContext == nil {
-		tmpParent := context.Background()
-		parentContext = &tmpParent
-	}
-	ctx, cancel := context.WithTimeout(*parentContext, backupTimeout)
+	ctx, cancel := context.WithTimeout(parentContext, backupTimeout)
 	defer cancel()
 	switch spec.StorageType {
 	case api.BackupStorageTypeS3:
