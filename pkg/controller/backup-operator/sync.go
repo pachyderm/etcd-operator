@@ -178,7 +178,7 @@ func (b *Backup) periodicRunnerFunc(ctx context.Context, t *time.Ticker, eb *api
 	for {
 		select {
 		case <-ctx.Done():
-			break
+			return
 		case <-t.C:
 			b.logger.Infof("starting periodic backup %s", eb.GetName())
 			var latestEb *api.EtcdBackup
