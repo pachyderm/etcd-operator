@@ -1,15 +1,9 @@
 steps:
-    - name: "gcr.io/cloud-builders/docker"
+    - name: "gcr.io/kaniko-project/executor:latest"
       args:
-          [
-              "build",
-              "--build-arg",
-              "version=$PROJECT_ID",
-              "--build-arg",
-              "git_sha=$COMMIT_SHA",
-              "-t",
-              "gcr.io/$PROJECT_ID/etcd-operator:$COMMIT_SHA",
-              ".",
-          ]
-images: ["gcr.io/$PROJECT_ID/etcd-operator:$COMMIT_SHA"]
+          - --destination=gcr.io/$PROJECT_ID/etcd-operator:$COMMIT_SHA
+          - '--build-arg="version=$PROJECT_ID-$BRANCH_NAME-$BUILD_ID"'
+          - '--build-arg="git_sha=$COMMIT_SHA"'
+          - --cache=true
+          - --cache-ttl=48h
 timeout: 1200s
